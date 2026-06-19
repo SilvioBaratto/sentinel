@@ -146,6 +146,9 @@ class Reversibility(Enum):
     REVERSIBLE = "reversible"
     PERMANENT = "permanent"
 
+    def __bool__(self) -> bool:
+        return self is Reversibility.REVERSIBLE
+
 
 class ActionKind(Enum):
     KILL_PROCESS = "kill_process"
@@ -201,3 +204,57 @@ class AuditRecord:
 
 # Alias: tests and downstream code may use either name.
 MachineState = SentinelState
+
+
+# ── Cycle 4: wake proxy, service, advisor, status vocabulary ────────────────
+
+from typing import Mapping  # noqa: E402
+
+
+@dataclass(frozen=True)
+class PublishedPort:
+    host_ip: str
+    host_port: int
+    container_port: int
+    protocol: str = "tcp"
+
+
+@dataclass(frozen=True)
+class StackPorts:
+    stack: str
+    containers: tuple[str, ...]
+    ports: tuple[PublishedPort, ...]
+    compose_project: str | None = None
+
+
+@dataclass(frozen=True)
+class WakeRegistration:
+    stack: str
+    ports: tuple[PublishedPort, ...]
+    restart_command: tuple[str, ...]
+
+
+class WakeOutcome(Enum):
+    RESTARTED = "restarted"
+    ALREADY_RUNNING = "already_running"
+    RESTART_FAILED = "restart_failed"
+    HEALTH_TIMEOUT = "health_timeout"
+
+
+@dataclass(frozen=True)
+class AdvisorRanking:
+    ordered_targets: tuple[str, ...]
+    explanations: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class StatusReport:
+    pressure: PressureLevel
+    state: SentinelState
+    memory: MemoryReport
+    swap: SwapUsage
+    disks: tuple[DiskUsage, ...]
+    recent_actions: tuple[ActionResult, ...]
+    idle_processes: tuple[ProcessCandidate, ...]
+    idle_containers: tuple[ContainerCandidate, ...]
+    wake_proxies: tuple[str, ...]

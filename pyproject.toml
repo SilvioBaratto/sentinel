@@ -9,11 +9,16 @@ description = "macOS resource governor — memory pressure, swap, disk monitorin
 requires-python = ">=3.11"
 dependencies = [
     "psutil>=5.9",
+    "typer>=0.12",
 ]
+
+[project.scripts]
+sentinel = "sentinel.cli:app"
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
+    "pytest-asyncio>=0.21",
     "hypothesis>=6",
     "ruff>=0.4",
     "docker>=7",
@@ -31,3 +36,4 @@ target-version = "py311"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"

@@ -201,3 +201,70 @@ class AuditLogger(Protocol):
 @runtime_checkable
 class Notifier(Protocol):
     def notify(self, result: ActionResult) -> None: ...
+
+
+# ── Cycle 4: config store, docker adapters, wake proxy, advisor, service ────
+
+from typing import TYPE_CHECKING  # noqa: E402
+
+from sentinel.domain.value_objects import (  # noqa: E402
+    AdvisorRanking,
+    DetectionResult,
+    StackPorts,
+    StatusReport,
+    WakeOutcome,
+    WakeRegistration,
+)
+
+if TYPE_CHECKING:
+    from sentinel.config import AppConfig, SentinelPaths
+
+
+@runtime_checkable
+class ConfigStore(Protocol):
+    def load(self) -> AppConfig: ...
+    def save(self, config: AppConfig) -> None: ...
+    def paths(self) -> SentinelPaths: ...
+
+
+@runtime_checkable
+class PortDiscoverer(Protocol):
+    def discover(self, name: str) -> StackPorts: ...
+
+
+@runtime_checkable
+class StackRestarter(Protocol):
+    def restart(self, registration: WakeRegistration) -> WakeOutcome: ...
+    def is_running(self, stack: str) -> bool: ...
+
+
+@runtime_checkable
+class HealthGate(Protocol):
+    async def wait_ready(self, port: int, timeout: float) -> bool: ...
+
+
+@runtime_checkable
+class WakeProxyManager(Protocol):
+    def register(self, registration: WakeRegistration) -> None: ...
+    def unregister(self, stack: str) -> None: ...
+    def active(self) -> tuple[str, ...]: ...
+    def stop_all(self) -> None: ...
+
+
+@runtime_checkable
+class Advisor(Protocol):
+    def rank(self, detection: DetectionResult) -> AdvisorRanking: ...
+
+
+@runtime_checkable
+class ServiceController(Protocol):
+    def install(self) -> None: ...
+    def uninstall(self) -> None: ...
+    def start(self) -> None: ...
+    def stop(self) -> None: ...
+    def status(self) -> str: ...
+
+
+@runtime_checkable
+class StatusProvider(Protocol):
+    def build(self) -> StatusReport: ...
