@@ -286,35 +286,35 @@ def test_when_scripted_sequence_then_normal_warn_critical_disk_low_normal_emitte
     low_disk = _make_disk(free_gib=5.0)  # well below 20 GiB floor
 
     pressure_seq = [
-        PressureLevel.NORMAL,    # step 1
-        PressureLevel.WARN,      # step 2
-        PressureLevel.WARN,      # step 3
+        PressureLevel.NORMAL,  # step 1
+        PressureLevel.WARN,  # step 2
+        PressureLevel.WARN,  # step 3
         PressureLevel.CRITICAL,  # step 4
         PressureLevel.CRITICAL,  # step 5
-        PressureLevel.NORMAL,    # step 6
-        PressureLevel.NORMAL,    # step 7
+        PressureLevel.NORMAL,  # step 6
+        PressureLevel.NORMAL,  # step 7
     ]
     disk_seq = [
-        ok_disk,   # step 1
-        ok_disk,   # step 2
-        ok_disk,   # step 3
-        ok_disk,   # step 4
-        ok_disk,   # step 5
+        ok_disk,  # step 1
+        ok_disk,  # step 2
+        ok_disk,  # step 3
+        ok_disk,  # step 4
+        ok_disk,  # step 5
         low_disk,  # step 6 — disk dip
-        ok_disk,   # step 7 — disk recovered
+        ok_disk,  # step 7 — disk recovered
     ]
 
     pipeline = _scripted_pipeline(
         pressure_seq, disk_seq, confirm_samples=2, confirm_samples_clear=1
     )
 
-    assert pipeline.step() == SentinelState.NORMAL    # step 1
-    assert pipeline.step() == SentinelState.NORMAL    # step 2 — WARN not yet confirmed
-    assert pipeline.step() == SentinelState.WARN      # step 3 — confirm_samples met
-    assert pipeline.step() == SentinelState.WARN      # step 4 — CRITICAL building
+    assert pipeline.step() == SentinelState.NORMAL  # step 1
+    assert pipeline.step() == SentinelState.NORMAL  # step 2 — WARN not yet confirmed
+    assert pipeline.step() == SentinelState.WARN  # step 3 — confirm_samples met
+    assert pipeline.step() == SentinelState.WARN  # step 4 — CRITICAL building
     assert pipeline.step() == SentinelState.CRITICAL  # step 5 — CRITICAL confirmed
     assert pipeline.step() == SentinelState.DISK_LOW  # step 6 — disk dip
-    assert pipeline.step() == SentinelState.NORMAL    # step 7 — recovery
+    assert pipeline.step() == SentinelState.NORMAL  # step 7 — recovery
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -13,7 +13,12 @@ import time
 from typing import Any, Callable
 
 from sentinel.config import MonitorConfig
-from sentinel.domain.protocols import History, ResourceSampler, StateMachine, ThresholdEngine
+from sentinel.domain.protocols import (
+    History,
+    ResourceSampler,
+    StateMachine,
+    ThresholdEngine,
+)
 from sentinel.domain.value_objects import DiskUsage, SentinelState
 from sentinel.monitor.clock import SystemClock
 from sentinel.monitor.rolling_history import RollingHistory
@@ -102,7 +107,11 @@ def build_pipeline(
     """Composition root: the only place real adapters (or injected fakes) are named together."""
     clock_fn = clock if clock is not None else time.monotonic
     sampler_clock = SystemClock(monotonic=clock_fn)
-    sampler = _fake_sampler(readers, sampler_clock) if readers else _real_sampler(sampler_clock)
+    sampler = (
+        _fake_sampler(readers, sampler_clock)
+        if readers
+        else _real_sampler(sampler_clock)
+    )
     history = RollingHistory(config)
     engine = DefaultThresholdEngine(config, clock_fn)
     return MonitoringPipeline(sampler, history, engine, SentinelStateMachine())

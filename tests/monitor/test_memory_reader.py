@@ -11,6 +11,7 @@ so ``total - used`` overstates true consumption; 'available' is the operationall
 correct measure.  The [3-0] constraint applies: psutil is reporting-only and
 must never gate the state machine.
 """
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -36,6 +37,7 @@ _8GB = 8 * _GB
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+
 def _fake_vm(
     total: int = _16GB,
     available: int = _8GB,
@@ -52,6 +54,7 @@ def _reader(**kwargs) -> PsutilMemoryReader:
 
 # ── AC1: domain MemoryReport is used; local redefinition deleted ──────────────
 
+
 def test_when_memory_read_then_result_is_exact_domain_memory_report_type():
     """read() must return the domain MemoryReport, not a separately-defined local class.
 
@@ -64,12 +67,14 @@ def test_when_memory_read_then_result_is_exact_domain_memory_report_type():
 
 # ── AC3: MemoryReader protocol is satisfied ───────────────────────────────────
 
+
 def test_when_psutil_reader_checked_against_protocol_then_memory_reader_protocol_is_satisfied():
     """PsutilMemoryReader must be an isinstance match for the MemoryReader Protocol (AC3)."""
     assert isinstance(_reader(), MemoryReader)
 
 
 # ── AC2: domain field mapping — total_bytes / used_bytes / free_bytes ─────────
+
 
 def test_when_total_is_16gb_then_total_bytes_equals_16gb():
     """psutil.total is propagated to MemoryReport.total_bytes (AC2)."""
@@ -96,6 +101,7 @@ def test_when_available_is_zero_then_free_bytes_is_zero():
 
 # ── AC4: no .available / .percent on the domain MemoryReport ─────────────────
 
+
 def test_when_domain_memory_report_is_inspected_then_available_attribute_is_absent():
     """MemoryReport must NOT expose .available — that is a psutil-internal field (AC4)."""
     report = MemoryReport(total_bytes=_16GB, used_bytes=_8GB, free_bytes=_8GB)
@@ -109,6 +115,7 @@ def test_when_domain_memory_report_is_inspected_then_percent_attribute_is_absent
 
 
 # ── AC5: end-to-end AttributeError regression guard ──────────────────────────
+
 
 def test_when_memory_reader_sample_fed_through_threshold_engine_then_no_attribute_error():
     """A sample built with PsutilMemoryReader must not cause AttributeError in the engine.
@@ -138,11 +145,12 @@ def test_when_memory_reader_sample_fed_through_threshold_engine_then_no_attribut
     history = RollingHistory(config)
     history.append(sample)
 
-    signal = engine.evaluate(history)   # must not raise AttributeError
+    signal = engine.evaluate(history)  # must not raise AttributeError
     assert signal is not None
 
 
 # ── AC6: memory is reporting-only; it must never gate proposed_state ──────────
+
 
 def test_when_memory_values_differ_then_proposed_state_is_identical():
     """Samples with identical pressure + disk but opposite memory → same proposed_state.

@@ -4,9 +4,15 @@ from typing import Protocol, runtime_checkable
 
 from sentinel.domain.value_objects import (
     CandidateSignal,
+    ContainerCandidate,
+    ContainerStats,
     DiskUsage,
+    FrontmostApp,
     MemoryReport,
     PressureLevel,
+    ProcessCandidate,
+    ProcessClassification,
+    ProcessInfo,
     ResourceSample,
     SentinelState,
     SwapUsage,
@@ -67,3 +73,66 @@ class StateMachine(Protocol):
     def state(self) -> SentinelState: ...
 
     def transition(self, signal: CandidateSignal) -> SentinelState: ...
+
+
+# ── Cycle 2: process & container detection protocols ─────────────────────────
+
+from typing import Mapping  # noqa: E402
+
+
+@runtime_checkable
+class ProcessLister(Protocol):
+    def list(self) -> tuple[ProcessInfo, ...]: ...
+
+
+@runtime_checkable
+class FrontmostAppReader(Protocol):
+    def read(self) -> FrontmostApp: ...
+
+
+@runtime_checkable
+class HidIdleReader(Protocol):
+    def read(self) -> float: ...
+
+
+@runtime_checkable
+class ProcessClassifier(Protocol):
+    def classify(
+        self, proc: ProcessInfo, index: Mapping[int, ProcessInfo]
+    ) -> ProcessClassification: ...
+
+
+@runtime_checkable
+class ProcessIdleDetector(Protocol):
+    def detect(self, state: SentinelState) -> tuple[ProcessCandidate, ...]: ...
+
+
+@runtime_checkable
+class ContainerStatsReader(Protocol):
+    def read(self) -> tuple[ContainerStats, ...]: ...
+
+
+@runtime_checkable
+class ContainerSessionReader(Protocol):
+    def active_session_names(self) -> frozenset[str]: ...
+
+
+@runtime_checkable
+class ContainerStatsProvider(Protocol):
+    """Duck-typed reader interface consumed by DefaultContainerIdleDetector.
+
+    Distinct from ContainerStatsReader (returns ContainerStats objects) and
+    ContainerSessionReader (returns active session names); this provider
+    returns a pre-combined dict per container that the idle gate consumes
+    directly.  Satisfied by _DockerLiveReader in sentinel.detection and by
+    FakeStatsReader in tests.
+    """
+
+    def list_containers(self) -> list[str]: ...
+
+    def get_stats(self, name: str) -> dict: ...
+
+
+@runtime_checkable
+class ContainerIdleDetector(Protocol):
+    def detect(self, state: SentinelState) -> tuple[ContainerCandidate, ...]: ...

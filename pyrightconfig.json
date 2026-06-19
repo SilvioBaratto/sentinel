@@ -1,0 +1,12 @@
+{
+  "typeCheckingMode": "standard",
+  "exclude": ["tests/**"],
+  "reportUnknownMemberType": false,
+  "reportUnknownParameterType": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownArgumentType": false,
+  "reportMissingParameterType": false,
+  "reportMissingTypeArgument": false,
+  "reportUnnecessaryIsInstance": false,
+  "reportPrivateImportUsage": false
+}

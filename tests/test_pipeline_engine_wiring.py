@@ -234,14 +234,14 @@ def test_when_confirm_samples_clear_set_to_four_then_single_normal_does_not_clea
     config = _cfg(confirm=2, confirm_clear=4, cooldown=0.0)
     pipeline = _scripted_pipeline(
         pressure_seq=[
-            PressureLevel.WARN,     # step 1
-            PressureLevel.WARN,     # step 2 — confirm_samples=2 met → WARN
-            PressureLevel.NORMAL,   # step 3 — single NORMAL must NOT clear (confirm_clear=4)
+            PressureLevel.WARN,  # step 1
+            PressureLevel.WARN,  # step 2 — confirm_samples=2 met → WARN
+            PressureLevel.NORMAL,  # step 3 — single NORMAL must NOT clear (confirm_clear=4)
         ],
         config=config,
     )
-    pipeline.step()   # step 1 — WARN building
-    pipeline.step()   # step 2 — WARN confirmed
+    pipeline.step()  # step 1 — WARN building
+    pipeline.step()  # step 2 — WARN confirmed
     result = pipeline.step()  # step 3 — single NORMAL dip
     assert result == SentinelState.WARN
 
@@ -273,33 +273,33 @@ def test_when_full_walk_scripted_then_normal_warn_critical_disk_low_normal_emitt
     config = _cfg(confirm=2, confirm_clear=1, cooldown=0.0)
     pipeline = _scripted_pipeline(
         pressure_seq=[
-            PressureLevel.NORMAL,    # step 1
-            PressureLevel.WARN,      # step 2
-            PressureLevel.WARN,      # step 3
+            PressureLevel.NORMAL,  # step 1
+            PressureLevel.WARN,  # step 2
+            PressureLevel.WARN,  # step 3
             PressureLevel.CRITICAL,  # step 4
             PressureLevel.CRITICAL,  # step 5
-            PressureLevel.NORMAL,    # step 6
-            PressureLevel.NORMAL,    # step 7
+            PressureLevel.NORMAL,  # step 6
+            PressureLevel.NORMAL,  # step 7
         ],
         disk_seq=[
-            ok_disk,   # step 1
-            ok_disk,   # step 2
-            ok_disk,   # step 3
-            ok_disk,   # step 4
-            ok_disk,   # step 5
+            ok_disk,  # step 1
+            ok_disk,  # step 2
+            ok_disk,  # step 3
+            ok_disk,  # step 4
+            ok_disk,  # step 5
             low_disk,  # step 6 — disk dip
-            ok_disk,   # step 7 — disk recovered
+            ok_disk,  # step 7 — disk recovered
         ],
         config=config,
     )
 
-    assert pipeline.step() == SentinelState.NORMAL    # step 1
-    assert pipeline.step() == SentinelState.NORMAL    # step 2 — 1 WARN, not confirmed
-    assert pipeline.step() == SentinelState.WARN      # step 3 — WARN confirmed
-    assert pipeline.step() == SentinelState.WARN      # step 4 — CRITICAL building
+    assert pipeline.step() == SentinelState.NORMAL  # step 1
+    assert pipeline.step() == SentinelState.NORMAL  # step 2 — 1 WARN, not confirmed
+    assert pipeline.step() == SentinelState.WARN  # step 3 — WARN confirmed
+    assert pipeline.step() == SentinelState.WARN  # step 4 — CRITICAL building
     assert pipeline.step() == SentinelState.CRITICAL  # step 5 — CRITICAL confirmed
     assert pipeline.step() == SentinelState.DISK_LOW  # step 6 — disk dip
-    assert pipeline.step() == SentinelState.NORMAL    # step 7 — recovery
+    assert pipeline.step() == SentinelState.NORMAL  # step 7 — recovery
 
 
 def test_when_single_warn_sample_via_pipeline_then_state_remains_normal():
@@ -439,8 +439,8 @@ def test_when_critical_arrives_during_warn_cooldown_via_pipeline_then_escalates(
 
     pipeline = _scripted_pipeline(
         pressure_seq=[
-            PressureLevel.WARN,      # step 1
-            PressureLevel.WARN,      # step 2 — WARN confirmed
+            PressureLevel.WARN,  # step 1
+            PressureLevel.WARN,  # step 2 — WARN confirmed
             PressureLevel.CRITICAL,  # step 3
             PressureLevel.CRITICAL,  # step 4 — must escalate
         ],
@@ -448,12 +448,12 @@ def test_when_critical_arrives_during_warn_cooldown_via_pipeline_then_escalates(
         clock=clock,
     )
 
-    pipeline.step()         # step 1 at t=0
-    clock.advance(1.0)      # t=1
-    pipeline.step()         # step 2 — WARN confirmed; cooldown starts
-    clock.advance(1.0)      # t=2 (well within 300 s cooldown)
-    pipeline.step()         # step 3 — CRITICAL #1
-    clock.advance(1.0)      # t=3
+    pipeline.step()  # step 1 at t=0
+    clock.advance(1.0)  # t=1
+    pipeline.step()  # step 2 — WARN confirmed; cooldown starts
+    clock.advance(1.0)  # t=2 (well within 300 s cooldown)
+    pipeline.step()  # step 3 — CRITICAL #1
+    clock.advance(1.0)  # t=3
     result = pipeline.step()  # step 4 — CRITICAL #2: must escalate despite cooldown
     assert result == SentinelState.CRITICAL
 
@@ -472,15 +472,15 @@ def test_when_lone_normal_during_sustained_warn_via_pipeline_then_does_not_clear
     config = _cfg(confirm=2, confirm_clear=4, cooldown=0.0)
     pipeline = _scripted_pipeline(
         pressure_seq=[
-            PressureLevel.WARN,    # step 1
-            PressureLevel.WARN,    # step 2 — WARN confirmed
+            PressureLevel.WARN,  # step 1
+            PressureLevel.WARN,  # step 2 — WARN confirmed
             PressureLevel.NORMAL,  # step 3 — single NORMAL must NOT clear
         ],
         config=config,
     )
 
-    pipeline.step()   # step 1
-    pipeline.step()   # step 2 — WARN confirmed
+    pipeline.step()  # step 1
+    pipeline.step()  # step 2 — WARN confirmed
     result = pipeline.step()  # step 3 — lone NORMAL during sustained WARN
     assert result == SentinelState.WARN
 
