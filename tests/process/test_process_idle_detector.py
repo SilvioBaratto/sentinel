@@ -13,7 +13,6 @@ object, letting the detector stay small (< 50 lines per SOLID constraint).
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from hypothesis import given, strategies as st
 
 

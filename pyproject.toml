@@ -16,6 +16,7 @@ dev = [
     "pytest>=8",
     "hypothesis>=6",
     "ruff>=0.4",
+    "docker>=7",
 ]
 
 [tool.setuptools.packages.find]

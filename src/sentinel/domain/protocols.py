@@ -136,3 +136,68 @@ class ContainerStatsProvider(Protocol):
 @runtime_checkable
 class ContainerIdleDetector(Protocol):
     def detect(self, state: SentinelState) -> tuple[ContainerCandidate, ...]: ...
+
+
+# ── Cycle 3: safe execution & disk cleanup protocols ─────────────────────────
+
+from sentinel.domain.value_objects import ActionResult, AuditRecord  # noqa: E402
+
+
+@runtime_checkable
+class AppQuitter(Protocol):
+    def quit(self, pid: int, name: str) -> bool: ...
+
+
+@runtime_checkable
+class ProcessSignaler(Protocol):
+    def signal(self, pid: int, sig: int) -> bool: ...
+
+
+@runtime_checkable
+class AliveProbe(Protocol):
+    def is_alive(self, pid: int) -> bool: ...
+
+
+@runtime_checkable
+class Killer(Protocol):
+    def kill(self, candidate: ProcessCandidate) -> ActionResult: ...
+
+
+@runtime_checkable
+class ContainerStopper(Protocol):
+    def stop(self, candidate: ContainerCandidate) -> ActionResult: ...
+
+
+@runtime_checkable
+class PathGuard(Protocol):
+    def is_safe(self, path: str) -> bool: ...
+
+
+@runtime_checkable
+class ActivityGuard(Protocol):
+    def is_active(self, project_dir: str) -> bool: ...
+
+
+@runtime_checkable
+class Trasher(Protocol):
+    def trash(self, path: str) -> ActionResult: ...
+
+
+@runtime_checkable
+class Deleter(Protocol):
+    def delete(self, path: str) -> ActionResult: ...
+
+
+@runtime_checkable
+class DiskCleaner(Protocol):
+    def clean(self, state: SentinelState) -> tuple[ActionResult, ...]: ...
+
+
+@runtime_checkable
+class AuditLogger(Protocol):
+    def record(self, record: AuditRecord) -> None: ...
+
+
+@runtime_checkable
+class Notifier(Protocol):
+    def notify(self, result: ActionResult) -> None: ...

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 from typing import Any
-from sentinel.domain.value_objects import SentinelState
+
+from sentinel.domain.value_objects import ExecutionMode, SentinelState
 
 # Alias so both names work in tests and downstream code
 SystemState = SentinelState
@@ -151,3 +153,107 @@ class DockerConfig:
     def from_mapping(cls, mapping: dict[str, Any]) -> DockerConfig:
         fields = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
         return cls(**{k: v for k, v in mapping.items() if k in fields})
+
+
+# ── Cycle 3: safe execution & disk cleanup config ────────────────────────────
+
+_DEFAULT_EDITOR_NAMES: tuple[str, ...] = (
+    "Code",
+    "Visual Studio Code",
+    "Cursor",
+    "IntelliJ IDEA",
+    "PyCharm",
+    "WebStorm",
+    "GoLand",
+    "CLion",
+    "Rider",
+    "DataGrip",
+    "RubyMine",
+    "PhpStorm",
+)
+
+_DEFAULT_DENY_PATHS: tuple[str, ...] = (
+    "/System",
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/Library/Application Support",
+    os.path.expanduser("~/Library/Application Support"),
+    "/Applications",
+)
+
+
+@dataclass(frozen=True)
+class KillConfig:
+    quit_grace_seconds: float = 45.0
+    editor_quit_grace_seconds: float = 60.0
+    sigterm_grace_seconds: float = 20.0
+    poll_interval: float = 1.0
+    critical_quit_grace_seconds: float = 30.0
+    editor_names: tuple[str, ...] = _DEFAULT_EDITOR_NAMES
+    editor_auto_sigkill: bool = False
+
+    @classmethod
+    def from_mapping(cls, mapping: dict[str, Any]) -> KillConfig:
+        fields = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+        return cls(**{k: v for k, v in mapping.items() if k in fields})
+
+
+# Alias used by VerifiedKiller and tests — same config, friendlier name.
+SentinelConfig = KillConfig
+
+
+@dataclass(frozen=True)
+class CleanupConfig:
+    disk_low_floor: int = 20 * _GiB
+    downloads_max_age_days: int = 30
+    build_artifact_names: tuple[str, ...] = (
+        "node_modules",
+        ".next",
+        "dist",
+        "__pycache__",
+        "DerivedData",
+    )
+    deny_paths: tuple[str, ...] = _DEFAULT_DENY_PATHS
+    cache_globs: tuple[str, ...] = ()
+    downloads_dir: str | None = None
+    git_recent_seconds: float = 3600.0
+
+    @classmethod
+    def from_mapping(cls, mapping: dict[str, Any]) -> CleanupConfig:
+        fields = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+        return cls(**{k: v for k, v in mapping.items() if k in fields})
+
+
+@dataclass(frozen=True)
+class NotifyConfig:
+    enabled: bool = True
+    title: str = "Sentinel"
+
+    @classmethod
+    def from_mapping(cls, mapping: dict[str, Any]) -> NotifyConfig:
+        fields = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+        return cls(**{k: v for k, v in mapping.items() if k in fields})
+
+
+@dataclass(frozen=True)
+class ExecuteConfig:
+    mode: ExecutionMode = ExecutionMode.AUTO
+    audit_log_path: str | None = None
+    rotate_max_bytes: int | None = None
+    rotate_backups: int | None = None
+    kill: KillConfig = field(default_factory=KillConfig)
+    cleanup: CleanupConfig = field(default_factory=CleanupConfig)
+    notify: NotifyConfig = field(default_factory=NotifyConfig)
+
+    @classmethod
+    def from_mapping(cls, mapping: dict[str, Any]) -> ExecuteConfig:
+        fields = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+        filtered: dict[str, Any] = {k: v for k, v in mapping.items() if k in fields}
+        if isinstance(filtered.get("kill"), dict):
+            filtered["kill"] = KillConfig.from_mapping(filtered["kill"])
+        if isinstance(filtered.get("cleanup"), dict):
+            filtered["cleanup"] = CleanupConfig.from_mapping(filtered["cleanup"])
+        if isinstance(filtered.get("notify"), dict):
+            filtered["notify"] = NotifyConfig.from_mapping(filtered["notify"])
+        return cls(**filtered)

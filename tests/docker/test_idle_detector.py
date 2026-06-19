@@ -271,9 +271,9 @@ class TestIdleGate:
         """
         clock = FakeClock(start=0.0)
         detector, _ = _make_detector([_idle_stats("clipcraft_api", cpu=0.1)], clock)
-        detector.detect(SystemState.WARN)        # poll 1: anchors idle_since = 0
-        clock.advance(2 * 3600 + 60)            # 2h 1min → now = 7260
-        detector.detect(SystemState.WARN)        # poll 2
+        detector.detect(SystemState.WARN)  # poll 1: anchors idle_since = 0
+        clock.advance(2 * 3600 + 60)  # 2h 1min → now = 7260
+        detector.detect(SystemState.WARN)  # poll 2
         result = detector.detect(SystemState.WARN)  # poll 3: emitted
         assert any(c.name == "clipcraft_api" for c in result)
 
@@ -346,9 +346,9 @@ class TestIdleGate:
         """
         clock = FakeClock(start=0.0)
         detector, _ = _make_detector([_idle_stats("clipcraft_api", cpu=0.1)], clock)
-        detector.detect(SystemState.WARN)        # poll 1: anchors idle_since = 0
-        clock.advance(1 * 3600)                  # advance only 1h
-        detector.detect(SystemState.WARN)        # poll 2
+        detector.detect(SystemState.WARN)  # poll 1: anchors idle_since = 0
+        clock.advance(1 * 3600)  # advance only 1h
+        detector.detect(SystemState.WARN)  # poll 2
         result = detector.detect(SystemState.WARN)  # poll 3: consecutive=3, elapsed<2h
         assert all(c.name != "clipcraft_api" for c in result)
 
@@ -394,9 +394,9 @@ class TestIdleSinceAnchoring:
         """idle_since anchored at first idle poll; advance >= 2h → candidate emitted."""
         clock = FakeClock(start=0.0)
         detector, _ = _make_detector([_idle_stats("clipcraft_api", cpu=0.1)], clock)
-        detector.detect(SystemState.WARN)        # poll 1: anchors idle_since = 0
-        clock.advance(2 * 3600 + 1)             # advance 2h+1s
-        detector.detect(SystemState.WARN)        # poll 2
+        detector.detect(SystemState.WARN)  # poll 1: anchors idle_since = 0
+        clock.advance(2 * 3600 + 1)  # advance 2h+1s
+        detector.detect(SystemState.WARN)  # poll 2
         result = detector.detect(SystemState.WARN)  # poll 3: should emit
         assert any(c.name == "clipcraft_api" for c in result)
 
@@ -406,9 +406,9 @@ class TestIdleSinceAnchoring:
         """Reported idle_seconds must be clock.now() - first_idle_observation."""
         clock = FakeClock(start=0.0)
         detector, _ = _make_detector([_idle_stats("clipcraft_api", cpu=0.1)], clock)
-        detector.detect(SystemState.WARN)        # poll 1: idle_since = 0
-        clock.advance(2 * 3600 + 60)            # 2h 1min → now = 7260
-        detector.detect(SystemState.WARN)        # poll 2
+        detector.detect(SystemState.WARN)  # poll 1: idle_since = 0
+        clock.advance(2 * 3600 + 60)  # 2h 1min → now = 7260
+        detector.detect(SystemState.WARN)  # poll 2
         result = detector.detect(SystemState.WARN)  # poll 3
         candidate = next(c for c in result if c.name == "clipcraft_api")
         # idle_seconds must reflect elapsed time, not the monotonic origin
@@ -473,9 +473,9 @@ class TestCandidateReason:
     def _emit_candidate(self) -> ContainerCandidate:
         clock = FakeClock(start=0.0)
         detector, _ = _make_detector([_idle_stats("clipcraft_api", cpu=0.1)], clock)
-        detector.detect(SystemState.WARN)        # poll 1: anchors idle_since
-        clock.advance(3 * 3600)                  # advance 3h past anchor
-        detector.detect(SystemState.WARN)        # poll 2
+        detector.detect(SystemState.WARN)  # poll 1: anchors idle_since
+        clock.advance(3 * 3600)  # advance 3h past anchor
+        detector.detect(SystemState.WARN)  # poll 2
         result = detector.detect(SystemState.WARN)  # poll 3
         assert len(result) >= 1, "pre-condition: candidate must be emitted"
         return next(c for c in result if c.name == "clipcraft_api")
@@ -563,9 +563,9 @@ class TestNeverRaisesOnReaderFailure:
             broken_name="broken_container",
         )
         detector = DefaultContainerIdleDetector(reader=reader, clock=clock, n_polls=3)
-        detector.detect(SystemState.WARN)    # poll 1: anchors idle_since
-        clock.advance(3 * 3600)             # advance 3h past anchor
-        detector.detect(SystemState.WARN)    # poll 2
+        detector.detect(SystemState.WARN)  # poll 1: anchors idle_since
+        clock.advance(3 * 3600)  # advance 3h past anchor
+        detector.detect(SystemState.WARN)  # poll 2
         result = detector.detect(SystemState.WARN)  # poll 3: emitted
         assert isinstance(result, tuple)
         assert any(c.name == "clipcraft_api" for c in result)

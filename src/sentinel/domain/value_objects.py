@@ -137,3 +137,67 @@ class ContainerCandidate:
 class DetectionResult:
     processes: tuple[ProcessCandidate, ...]
     containers: tuple[ContainerCandidate, ...]
+
+
+# ── Cycle 3: safe execution & disk cleanup vocabulary ────────────────────────
+
+
+class Reversibility(Enum):
+    REVERSIBLE = "reversible"
+    PERMANENT = "permanent"
+
+
+class ActionKind(Enum):
+    KILL_PROCESS = "kill_process"
+    STOP_CONTAINER = "stop_container"
+    TRASH = "trash"
+    DELETE = "delete"
+
+
+class ExecutionMode(Enum):
+    AUTO = "auto"
+    CONFIRM = "confirm"
+    DRY_RUN = "dry_run"
+
+
+class KillStage(Enum):
+    QUIT = "quit"
+    SIGTERM = "sigterm"
+    SIGKILL = "sigkill"
+    NONE = "none"
+
+
+class KillOutcome(Enum):
+    EXITED = "exited"
+    SURVIVED = "survived"
+    SKIPPED = "skipped"
+    ERROR = "error"
+
+
+@dataclass(frozen=True)
+class ActionResult:
+    kind: ActionKind
+    target: str
+    success: bool
+    reversibility: Reversibility
+    bytes_freed: int = 0
+    detail: str = ""
+    dry_run: bool = False
+    outcome: KillOutcome | None = None
+    stage: KillStage | None = None
+
+
+@dataclass(frozen=True)
+class AuditRecord:
+    timestamp: float
+    kind: ActionKind
+    target: str
+    success: bool
+    reversibility: Reversibility
+    bytes_freed: int
+    mode: ExecutionMode
+    detail: str
+
+
+# Alias: tests and downstream code may use either name.
+MachineState = SentinelState
