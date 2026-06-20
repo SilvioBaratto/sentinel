@@ -158,6 +158,10 @@ class VerifiedKiller:
         if self._is_editor(ctx.name) and not self._config.editor_auto_sigkill:
             return _result(KillOutcome.SURVIVED, KillStage.SIGTERM, ctx.name)
         self._signal_sender(ctx.pid, _SIGKILL)
+        self._sleeper(self._config.poll_interval)
+        # Verify exit each step (spec): never report success on an unconfirmed kill.
+        if self._is_alive(ctx.pid, ctx.original_ct):
+            return _result(KillOutcome.SURVIVED, KillStage.SIGKILL, ctx.name)
         return _result(KillOutcome.EXITED, KillStage.SIGKILL, ctx.name)
 
     # ── Helpers ───────────────────────────────────────────────────────────────

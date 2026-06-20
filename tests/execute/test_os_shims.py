@@ -16,6 +16,7 @@ import pytest
 from hypothesis import given, strategies as st
 
 from sentinel.execute.os_shims import (
+    NSRunningAppQuitter,
     OsascriptAppQuitter,
     PosixAliveProbe,
     PosixProcessSignaler,
@@ -119,6 +120,74 @@ class TestOsascriptAppQuitterNeverRaises:
             quitter.quit(pid=1234, name="Chrome")
         except Exception:
             pytest.fail("OsascriptAppQuitter.quit raised into its caller")
+
+
+# ============================================================================
+# NSRunningAppQuitter
+# Fix (fix/exec-safety): graceful-quit BY PID via NSRunningApplication.terminate(),
+#   so no process name is ever interpolated into a command (no injection surface),
+#   and the previous name="" no-op bug is removed.  quit(pid) -> bool.
+#   terminate seam injected; falls back to a name-based quitter only on failure.
+# ============================================================================
+
+
+class TestNSRunningAppQuitter:
+    def test_when_terminate_succeeds_then_quit_returns_true(self):
+        quitter = NSRunningAppQuitter(terminate=lambda pid: True)
+        assert quitter.quit(1234) is True
+
+    def test_when_quit_called_then_terminate_receives_the_pid(self):
+        seen: list[int] = []
+        NSRunningAppQuitter(
+            terminate=lambda pid: (seen.append(pid) or True),
+        ).quit(4321)
+        assert seen == [4321]
+
+    def test_quit_signature_takes_pid_only_no_name(self):
+        """The prod kill path calls quit_sender(pid); quit must accept a bare pid."""
+        NSRunningAppQuitter(terminate=lambda pid: True).quit(1)  # must not raise
+
+    def test_when_terminate_raises_then_fallback_is_used(self):
+        used = {"fallback": False}
+
+        def boom(pid):
+            raise RuntimeError("AppKit unavailable")
+
+        def fallback(pid):
+            used["fallback"] = True
+            return True
+
+        result = NSRunningAppQuitter(terminate=boom, fallback=fallback).quit(7)
+        assert used["fallback"] is True
+        assert result is True
+
+    def test_when_terminate_returns_false_then_fallback_is_used(self):
+        used = {"fallback": False}
+
+        def fallback(pid):
+            used["fallback"] = True
+            return True
+
+        NSRunningAppQuitter(terminate=lambda pid: False, fallback=fallback).quit(7)
+        assert used["fallback"] is True
+
+    def test_when_terminate_and_fallback_both_fail_then_quit_returns_false(self):
+        def boom(pid):
+            raise RuntimeError("no AppKit")
+
+        def also_boom(pid):
+            raise RuntimeError("no psutil")
+
+        assert NSRunningAppQuitter(terminate=boom, fallback=also_boom).quit(9) is False
+
+    def test_quit_never_raises(self):
+        def boom(pid):
+            raise Exception("catastrophic")
+
+        try:
+            NSRunningAppQuitter(terminate=boom, fallback=boom).quit(1234)
+        except Exception:
+            pytest.fail("NSRunningAppQuitter.quit raised into its caller")
 
 
 # ============================================================================

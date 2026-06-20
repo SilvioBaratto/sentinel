@@ -393,6 +393,39 @@ class TestActionResultContract:
 
 
 # ---------------------------------------------------------------------------
+# Fix (fix/exec-safety): SIGKILL must be VERIFIED, not assumed
+# Spec table: "verify exit each step".  The final SIGKILL was previously reported
+# as EXITED/success without re-checking liveness.
+# ---------------------------------------------------------------------------
+
+
+class TestSigkillIsVerified:
+    def test_when_process_survives_sigkill_then_outcome_is_survived_not_exited(self):
+        """Non-editor still alive after SIGKILL → outcome=SURVIVED, success=False."""
+        spy = SignalSpy()
+        result = make_killer(
+            # alive after quit, after SIGTERM, AND after SIGKILL (e.g. D-state)
+            alive_checker=AliveSequence(True, True, True),
+            signal_sender=spy,
+        ).kill(FakeCandidate(name="Slack"))
+
+        assert _signals.SIGKILL in spy.signal_numbers(), "SIGKILL must still be sent"
+        assert result.outcome == KillOutcome.SURVIVED
+        assert result.stage == KillStage.SIGKILL
+        assert result.success is False
+
+    def test_when_process_dies_after_sigkill_then_outcome_is_exited(self):
+        """Process gone on the post-SIGKILL re-check → outcome=EXITED, success=True."""
+        result = make_killer(
+            alive_checker=AliveSequence(True, True, False),
+        ).kill(FakeCandidate(name="Slack"))
+
+        assert result.outcome == KillOutcome.EXITED
+        assert result.stage == KillStage.SIGKILL
+        assert result.success is True
+
+
+# ---------------------------------------------------------------------------
 # PID-reuse guard (issue #21 comment)
 # ---------------------------------------------------------------------------
 
