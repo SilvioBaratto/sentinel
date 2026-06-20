@@ -168,6 +168,35 @@ class TestResolvePaths:
     def test_when_resolve_paths_called_then_result_equals_sentinel_paths_default(self):
         assert resolve_paths() == SentinelPaths.default()
 
+
+# ── Regression: no circular import when config_store is imported first ─────────
+
+
+class TestNoCircularImport:
+    """config.py lazily re-exports config_store names; importing config_store
+    FIRST (as the CLI does) must not raise a partially-initialised ImportError."""
+
+    def test_when_config_store_imported_before_config_then_no_circular_import(self):
+        import subprocess
+        import sys
+
+        result = subprocess.run(
+            [sys.executable, "-c", "import sentinel.config_store"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+
+    def test_when_jsonconfigstore_imported_from_config_in_fresh_interpreter(self):
+        import subprocess
+        import sys
+
+        code = "from sentinel.config import JsonConfigStore, resolve_paths; resolve_paths()"
+        result = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True
+        )
+        assert result.returncode == 0, result.stderr
+
     def test_when_json_config_store_is_instantiated_then_no_directory_is_created(
         self, tmp_path
     ):
