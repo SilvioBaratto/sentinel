@@ -27,6 +27,7 @@ from unittest.mock import MagicMock, patch
 
 from hypothesis import given, strategies as st
 
+import sentinel.notify.notifier as notifier_mod
 from sentinel.domain.value_objects import ActionKind, ActionResult, Reversibility
 from sentinel.notify.notifier import MacNotifier, NullNotifier
 
@@ -160,6 +161,53 @@ class TestMacNotifierSwallowsFailures:
                 bytes_freed=bytes_freed,
             )
         )  # must not raise
+
+
+# ===========================================================================
+# Fix (fix/exec-safety) — MacNotifier must NOT be shell-injectable
+# result.target can be an attacker-influenced file path (e.g. a stale Download
+# trashed during DISK_LOW cleanup).  The notifier must never run it through a
+# shell, and must escape it inside the AppleScript string literal.
+# ===========================================================================
+
+
+class TestMacNotifierShellSafety:
+    def test_default_os_runner_does_not_use_shell(self) -> None:
+        """The real os_runner must pass an argv LIST and never shell=True."""
+        with patch.object(notifier_mod.subprocess, "run") as mock_run:
+            notifier_mod._default_os_runner(["osascript", "-e", "noop"])
+        mock_run.assert_called_once()
+        call_args, call_kwargs = mock_run.call_args
+        assert isinstance(call_args[0], list), "os_runner must pass an argv list"
+        assert call_kwargs.get("shell", False) is False, "shell=True is forbidden"
+
+    def test_when_target_has_metacharacters_then_runner_gets_a_list_not_a_string(
+        self,
+    ) -> None:
+        captured: list[object] = []
+        evil = 'X"; rm -rf ~ #'
+        MacNotifier(os_runner=lambda arg: captured.append(arg)).notify(
+            _make_result(target=evil)
+        )
+        assert captured, "os_runner was never called"
+        assert isinstance(captured[0], list), "runner must receive argv list, not a shell string"
+
+    def test_when_target_has_double_quotes_then_they_are_escaped_in_the_script(
+        self,
+    ) -> None:
+        """All quotes from target/title must be backslash-escaped; only the 4
+        structural AppleScript quotes stay unescaped."""
+        captured: list[list[str]] = []
+        evil = 'A" with title "B'  # 2 embedded quotes that try to break the literal
+        MacNotifier(os_runner=lambda arg: captured.append(arg)).notify(
+            _make_result(target=evil)
+        )
+        script = captured[0][-1]
+        assert '\\"' in script, "embedded quotes must be escaped"
+        structural = script.count('"') - script.count('\\"')
+        assert structural == 4, (
+            f"expected exactly 4 structural quotes, found {structural}: {script!r}"
+        )
 
 
 # ===========================================================================

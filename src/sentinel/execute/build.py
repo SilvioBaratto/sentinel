@@ -73,21 +73,29 @@ def _os_components(config: ExecuteConfig) -> tuple:
     from sentinel.execute.docker_stopper import DockerContainerStopper  # noqa: PLC0415
     from sentinel.execute.file_shims import FileManagerTrasher, OsRemoveDeleter  # noqa: PLC0415
     from sentinel.execute.os_shims import (  # noqa: PLC0415
-        OsascriptAppQuitter,
+        NSRunningAppQuitter,
         PosixAliveProbe,
         PosixProcessSignaler,
     )
     from sentinel.execute.verified_killer import VerifiedKiller  # noqa: PLC0415
 
-    quitter = OsascriptAppQuitter()
+    quitter = NSRunningAppQuitter()
     probe = PosixAliveProbe()
     signaler = PosixProcessSignaler()
 
     def _send_quit(pid: int) -> None:
-        quitter.quit(pid, "")
+        quitter.quit(pid)
 
     def _send_signal(pid: int, sig: int) -> None:
         signaler.signal(pid, sig)
+
+    def _read_create_time(pid: int) -> float | None:
+        import psutil  # noqa: PLC0415 — deferred
+
+        try:
+            return psutil.Process(pid).create_time()
+        except Exception:
+            return None
 
     killer = VerifiedKiller(
         config.kill,
@@ -95,6 +103,7 @@ def _os_components(config: ExecuteConfig) -> tuple:
         alive_checker=probe.is_alive,
         signal_sender=_send_signal,
         sleeper=time.sleep,
+        create_time_reader=_read_create_time,
     )
 
     stopper = DockerContainerStopper(
