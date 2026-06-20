@@ -429,7 +429,17 @@ def _sub_from(filtered: dict[str, Any], key: str, sub_cls: type) -> None:
 
 
 # Re-export so callers can use either `sentinel.config` or `sentinel.config_store`.
-# This import must stay AFTER AppConfig and SentinelPaths are defined above, so that
-# when config_store.py's `from sentinel.config import AppConfig, SentinelPaths` resolves
-# against the partially-initialised module, those names are already present.
-from sentinel.config_store import JsonConfigStore, resolve_paths  # noqa: E402, F401
+# This is LAZY (PEP 562 module __getattr__): an eager top-level import here creates a
+# circular import — config_store does `from sentinel.config import AppConfig, SentinelPaths`,
+# so whichever module is imported first would hit the other half-initialised. Deferring the
+# import to attribute-access time breaks the cycle while keeping `sentinel.config.JsonConfigStore`
+# and `sentinel.config.resolve_paths` working for callers that expect them here.
+_CONFIG_STORE_EXPORTS = frozenset({"JsonConfigStore", "resolve_paths"})
+
+
+def __getattr__(name: str) -> Any:
+    if name in _CONFIG_STORE_EXPORTS:
+        import sentinel.config_store as _cs  # noqa: PLC0415
+
+        return getattr(_cs, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
