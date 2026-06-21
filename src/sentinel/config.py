@@ -52,6 +52,12 @@ _DEFAULT_PROTECTED_NAMES: tuple[str, ...] = (
     "Viscosity",
     "Cisco Secure Client",
     "GlobalProtect",
+    # Tailscale — GUI app, CLI, open-source daemon, and the macsys network
+    # system-extension. Must never be reaped: it is the box's remote lifeline.
+    "Tailscale",
+    "tailscale",
+    "tailscaled",
+    "io.tailscale.ipn.macsys.network-extension",
     # Password managers
     "1Password",
     "1Password 7",

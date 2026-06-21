@@ -229,3 +229,12 @@ def _read_audit_tail(paths: object) -> list[str]:
         return lines[-20:] if len(lines) > 20 else lines
     except OSError:
         return []
+
+
+# Entry point for `python -m sentinel.cli ...` — the exact form the LaunchAgent
+# plist invokes (see service/controller.py _program_args). Without this, `-m`
+# imports the module but never calls app(), so `... run` silently no-ops and the
+# daemon never starts. The console_scripts entry point (sentinel.cli:app) calls
+# app() itself, so this guard is what makes the two launch paths equivalent.
+if __name__ == "__main__":
+    app()
