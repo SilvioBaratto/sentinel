@@ -15,6 +15,36 @@ app = typer.Typer(
 )
 
 
+# ── Root options ──────────────────────────────────────────────────────────────
+
+
+def _version_callback(value: bool) -> None:
+    """Print the version and exit, before any command or config load happens."""
+    if not value:
+        return
+    from sentinel import __version__  # noqa: PLC0415
+
+    typer.echo(f"sentinel {__version__}")
+    raise typer.Exit()
+
+
+@app.callback()
+def _root(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-V",
+        is_eager=True,
+        callback=_version_callback,
+        help="Show the installed version and exit.",
+    ),
+) -> None:
+    # No docstring: Typer would use it as the app's help text and override the
+    # help= passed above. The body stays empty — this callback exists only to
+    # host --version, which is eager and exits in its own callback.
+    return
+
+
 # ── Status view (plain data; produced by _build_status_reporter) ─────────────
 
 
