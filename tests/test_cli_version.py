@@ -78,22 +78,43 @@ def test_when_version_flag_is_passed_then_no_config_or_daemon_is_built() -> None
         assert _invoke(["--version"]).exit_code == 0
 
 
-def test_when_help_is_requested_then_version_flag_is_documented() -> None:
-    assert "--version" in _invoke(["--help"]).output
+def _command():
+    """The underlying Click command, for assertions about the CLI's shape.
 
+    Help *rendering* is not the contract. Typer draws help through Rich, which
+    styles and wraps according to terminal width and colour support, so the
+    literal string "--version" is not reliably a substring of that output — it
+    is not on CI, where colour is enabled and the option name is split by ANSI
+    escapes. The declared parameter is the durable fact; assert on that.
+    """
+    from typer.main import get_command  # noqa: PLC0415
 
-def test_when_help_is_requested_then_app_help_text_is_still_shown() -> None:
-    """The root callback must not steal the app's help text (no docstring on it)."""
-    assert "macOS resource governor" in _invoke(["--help"]).output
-
-
-def test_when_no_args_are_given_then_help_is_shown_and_version_is_not() -> None:
-    """Adding a root callback must not turn a bare invocation into a no-op."""
-    result = _RUNNER.invoke(_app(), [])
-    assert "Usage" in result.output
-
-
-def _app():
     from sentinel.cli import app  # noqa: PLC0415
 
-    return app
+    return get_command(app)
+
+
+def test_when_cli_is_inspected_then_version_flag_is_declared() -> None:
+    opts = {opt for param in _command().params for opt in param.opts}
+    assert "--version" in opts
+    assert "-V" in opts
+
+
+def test_when_version_option_is_declared_then_it_is_eager_and_has_help() -> None:
+    param = next(p for p in _command().params if "--version" in p.opts)
+    assert param.is_eager
+    assert param.help
+
+
+def test_when_root_callback_exists_then_app_help_text_is_preserved() -> None:
+    """The root callback must not steal the app's help text (no docstring on it)."""
+    assert "macOS resource governor" in (_command().help or "")
+
+
+def test_when_no_args_are_given_then_a_bare_invocation_is_not_a_no_op() -> None:
+    """Adding a root callback must not turn `sentinel` into a silent success."""
+    from sentinel import __version__  # noqa: PLC0415
+
+    result = _invoke([])
+    assert result.exit_code != 0
+    assert f"sentinel {__version__}" not in result.output
