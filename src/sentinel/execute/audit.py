@@ -10,8 +10,8 @@ import logging
 import logging.handlers
 from pathlib import Path
 
+from sentinel.audit_format import encode
 from sentinel.domain.value_objects import AuditRecord
-from sentinel.fmt import format_bytes
 
 
 class RotatingAuditLogger:
@@ -49,9 +49,5 @@ class RotatingAuditLogger:
             pass
 
     def _format(self, rec: AuditRecord) -> str:
-        size = format_bytes(rec.bytes_freed)
-        return (
-            f"target={rec.target} size={size} "
-            f"reversibility={rec.reversibility.value} "
-            f"mode={rec.mode.value} success={rec.success}"
-        )
+        """Delegate to the shared format owner — see sentinel.audit_format."""
+        return encode(rec)

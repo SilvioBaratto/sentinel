@@ -52,6 +52,9 @@ def _body(config: AdvisorConfig, targets: tuple[str, ...]) -> bytes:
         {
             "model": config.model,
             "keep_alive": config.keep_alive,
+            # Ollama streams by default, which yields NDJSON that json.loads
+            # cannot parse — every response would fail and fall back to identity.
+            "stream": False,
             "messages": [
                 {"role": "user", "content": _PROMPT.format(names=", ".join(targets))}
             ],
@@ -110,6 +113,11 @@ class OllamaAdvisor:
 
     def rank(self, detection: object) -> AdvisorRanking:
         targets = _candidates(detection)
+        # Nothing to rank → nothing to ask. Without this the daemon POSTs an
+        # empty candidate list every tick, which is 100% of ticks while
+        # detection is returning no candidates.
+        if not targets:
+            return _identity(targets)
         try:
             return self._call(targets)
         except Exception as exc:

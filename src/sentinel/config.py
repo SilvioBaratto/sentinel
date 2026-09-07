@@ -354,7 +354,7 @@ class ServiceConfig:
 class AdvisorConfig:
     enabled: bool = False
     base_url: str = "http://localhost:11434"
-    model: str = "glm-5.2:cloud"
+    model: str = "glm-5.3-flash:cloud"
     keep_alive: int = 0
     request_timeout: float = 5.0
 
@@ -424,7 +424,13 @@ class AppConfig:
 
     @property
     def effective_audit_log_path(self) -> str:
-        """Explicit execute.audit_log_path wins; falls back to SentinelPaths default."""
+        """Explicit execute.audit_log_path wins; falls back to SentinelPaths default.
+
+        Prefer ``build_executor(config, audit_log_path=paths.audit_log_path)``:
+        this property hardcodes ``SentinelPaths.default()`` and so diverges from
+        a store built with a custom ``base_dir``.  Kept for callers that only
+        hold an AppConfig.
+        """
         return self.execute.audit_log_path or SentinelPaths.default().audit_log_path
 
 

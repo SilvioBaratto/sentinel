@@ -11,40 +11,44 @@ One detection.detect(state) call provides the current idle candidates.
 from __future__ import annotations
 
 import json
-import re
+import time
 from pathlib import Path
 from typing import Any
 
+from sentinel.audit_format import decode
 from sentinel.domain.value_objects import (
-    ActionKind,
     ActionResult,
-    Reversibility,
     SentinelState,
     StatusReport,
-)
-
-# Matches the format RotatingAuditLogger._format() produces:
-#   target={target} size={size} reversibility={rev} mode={mode} success={ok}
-# The size field may contain a space (e.g. "1.2 GB"), so non-greedy capture is used.
-_AUDIT_RE = re.compile(
-    r"target=(?P<target>.+?)\s+size=.+?\s+"
-    r"reversibility=(?P<rev>\w+)\s+mode=\w+\s+success=(?P<ok>\w+)"
 )
 
 _STATE_MAP: dict[str, SentinelState] = {s.value: s for s in SentinelState}
 
 
 class _SnapshotReader:
-    """Read JSON state snapshot; returns defaults on any error."""
+    """Read JSON state snapshot; returns defaults on any error.
 
-    def __init__(self, path: Path) -> None:
+    ``age_seconds`` is None when no readable snapshot exists.  That distinction
+    matters: without it a dead daemon and a healthy idle one both render as
+    NORMAL, which is precisely the failure mode that let a four-day outage go
+    unnoticed.
+    """
+
+    def __init__(self, path: Path, clock: Any = None) -> None:
         self._path = path
+        self._clock = clock or time.time
 
-    def read(self) -> tuple[SentinelState, tuple[str, ...]]:
+    def read(self) -> tuple[SentinelState, tuple[str, ...], float | None]:
         raw = self._load()
         state = self._parse_state(raw.get("state", ""))
         proxies = tuple(str(p) for p in raw.get("wake_proxies", []))
-        return state, proxies
+        return state, proxies, self._age()
+
+    def _age(self) -> float | None:
+        try:
+            return max(0.0, float(self._clock()) - self._path.stat().st_mtime)
+        except OSError:
+            return None
 
     def _load(self) -> dict[str, Any]:
         try:
@@ -66,7 +70,7 @@ class _AuditParser:
 
     def read(self) -> tuple[ActionResult, ...]:
         lines = self._tail_lines()
-        parsed = (_parse_audit_line(line) for line in lines)
+        parsed = (decode(line) for line in lines)
         return tuple(r for r in parsed if r is not None)
 
     def _tail_lines(self) -> list[str]:
@@ -78,25 +82,6 @@ class _AuditParser:
         return (
             non_empty[-self._tail_n :] if len(non_empty) > self._tail_n else non_empty
         )
-
-
-def _parse_audit_line(line: str) -> ActionResult | None:
-    m = _AUDIT_RE.search(line)
-    if not m:
-        return None
-    return ActionResult(
-        kind=ActionKind.STOP_CONTAINER,
-        target=m.group("target"),
-        success=m.group("ok").lower() == "true",
-        reversibility=_parse_reversibility(m.group("rev")),
-    )
-
-
-def _parse_reversibility(value: str) -> Reversibility:
-    try:
-        return Reversibility(value.lower())
-    except ValueError:
-        return Reversibility.PERMANENT
 
 
 class DefaultStatusProvider:
@@ -122,7 +107,7 @@ class DefaultStatusProvider:
 
     def build(self) -> StatusReport:
         sample = self._sampler.sample()
-        state, wake_proxies = self._snap.read()
+        state, wake_proxies, snapshot_age = self._snap.read()
         detection = self._detection.detect(state)
         return StatusReport(
             pressure=sample.pressure,
@@ -134,4 +119,5 @@ class DefaultStatusProvider:
             idle_processes=tuple(detection.processes),
             idle_containers=tuple(detection.containers),
             wake_proxies=wake_proxies,
+            snapshot_age_seconds=snapshot_age,
         )

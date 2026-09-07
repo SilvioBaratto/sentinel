@@ -32,6 +32,7 @@ from sentinel.domain.value_objects import (
     ExecutionMode,
     Reversibility,
 )
+from sentinel.audit_format import decode
 from sentinel.execute.audit import RotatingAuditLogger
 
 # ---------------------------------------------------------------------------
@@ -194,23 +195,42 @@ class TestRotatingAuditLoggerOutput:
         line = handler.lines[0].lower()
         assert "fail" in line or "false" in line or "error" in line
 
-    # ---- Property: target always appears verbatim in the emitted line ----
+    # ---- Property: target always survives the emitted line intact ----
 
     @given(
         target=st.text(min_size=1, max_size=200).filter(
             lambda s: "\n" not in s and "\r" not in s
         )
     )
-    def test_when_target_is_any_printable_string_then_it_appears_in_log_line(
+    def test_when_target_is_any_printable_string_then_it_round_trips(
         self, target: str
     ) -> None:
-        """Invariant: for any non-empty, single-line target, it must appear verbatim.
+        """Invariant: any single-line target survives encode/decode intact.
 
-        Derived from criterion: 'writes one line containing target'.
+        Amended from verbatim-substring: JSON escaping is what prevents a
+        crafted filename from forging an audit record, so 'appears verbatim'
+        and 'cannot be forged' are mutually exclusive. Round-trip is the
+        stronger guarantee.
         """
         logger, handler = _make_unit_logger()
         logger.record(_make_record(target=target))
-        assert target in handler.lines[0]
+        parsed = decode(handler.lines[0])
+        assert parsed is not None
+        assert parsed.target == target
+
+    @given(
+        target=st.text(min_size=1, max_size=200).filter(
+            lambda s: "\n" not in s and "\r" not in s
+        )
+    )
+    def test_when_target_is_hostile_then_it_cannot_forge_a_second_record(
+        self, target: str
+    ) -> None:
+        """A target may never synthesise an extra record, whatever it contains."""
+        logger, handler = _make_unit_logger()
+        logger.record(_make_record(target=target))
+        assert len(handler.lines) == 1
+        assert len(handler.lines[0].splitlines()) == 1
 
 
 # ===========================================================================
