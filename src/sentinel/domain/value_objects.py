@@ -258,3 +258,7 @@ class StatusReport:
     idle_processes: tuple[ProcessCandidate, ...]
     idle_containers: tuple[ContainerCandidate, ...]
     wake_proxies: tuple[str, ...]
+    # None when no state snapshot exists — "the daemon has never written one"
+    # is a different fact from "the daemon says NORMAL", and conflating them is
+    # what makes a dead daemon look healthy.
+    snapshot_age_seconds: float | None = None

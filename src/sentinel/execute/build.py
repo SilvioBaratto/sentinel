@@ -20,11 +20,17 @@ def build_executor(
     config: ExecuteConfig,
     *,
     components: dict | None = None,
+    audit_log_path: str | None = None,
 ) -> ExecutionEngine:
-    """Wire real adapters (or injected fakes) into an ExecutionEngine."""
+    """Wire real adapters (or injected fakes) into an ExecutionEngine.
+
+    ``audit_log_path`` is the caller-resolved fallback used when
+    ``config.audit_log_path`` is unset.  The composition root passes the same
+    path the status reader tails, so writer and reader cannot diverge.
+    """
     if components is not None:
         return _from_components(config, components)
-    return _from_os(config)
+    return _from_os(config, audit_log_path)
 
 
 # ── private wiring helpers ────────────────────────────────────────────────────
@@ -42,8 +48,10 @@ def _from_components(config: ExecuteConfig, components: dict) -> ExecutionEngine
     )
 
 
-def _from_os(config: ExecuteConfig) -> ExecutionEngine:
-    killer, stopper, cleaner, audit = _os_components(config)
+def _from_os(
+    config: ExecuteConfig, audit_log_path: str | None = None
+) -> ExecutionEngine:
+    killer, stopper, cleaner, audit = _os_components(config, audit_log_path)
     return ExecutionEngine(
         killer=killer,
         stopper=stopper,
@@ -61,7 +69,7 @@ def _select_notifier(config: ExecuteConfig) -> object:
     return NullNotifier()
 
 
-def _os_components(config: ExecuteConfig) -> tuple:
+def _os_components(config: ExecuteConfig, audit_log_path: str | None = None) -> tuple:
     """Construct real OS adapters; all heavy imports are deferred to this body."""
     import time  # noqa: PLC0415
 
@@ -118,18 +126,31 @@ def _os_components(config: ExecuteConfig) -> tuple:
         deleter=OsRemoveDeleter(),
     )
 
-    audit = _make_audit_logger(config)
+    audit = _make_audit_logger(config, audit_log_path)
 
     return killer, stopper, cleaner, audit
 
 
-def _make_audit_logger(config: ExecuteConfig):
+def _make_audit_logger(config: ExecuteConfig, fallback_path: str | None = None):
+    """Build the audit sink; a NullHandler only when no path is resolvable at all.
+
+    Opening the file must never crash the process: the LaunchAgent runs under
+    KeepAlive.Crashed, so a raising RotatingFileHandler constructor would turn
+    an unwritable directory into a restart loop.
+    """
+    import os  # noqa: PLC0415
+
     from sentinel.execute.audit import RotatingAuditLogger  # noqa: PLC0415
 
-    if config.audit_log_path:
+    path = config.audit_log_path or fallback_path
+    if not path:
+        return RotatingAuditLogger(handler=logging.NullHandler())
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         return RotatingAuditLogger(
-            log_path=config.audit_log_path,
+            log_path=path,
             max_bytes=config.rotate_max_bytes or 10 * 1024 * 1024,
             backups=config.rotate_backups or 5,
         )
-    return RotatingAuditLogger(handler=logging.NullHandler())
+    except OSError:
+        return RotatingAuditLogger(handler=logging.NullHandler())

@@ -197,7 +197,7 @@ Key tunables (all have safe defaults):
     }
   },
   "wake":    { "enabled": true, "health_timeout": 30.0 },
-  "advisor": { "enabled": false, "model": "glm-5.2:cloud" }
+  "advisor": { "enabled": false, "model": "glm-5.3-flash:cloud" }
 }
 ```
 

@@ -27,6 +27,8 @@ class _StatusView:
     recent_actions: list[dict] = field(default_factory=list)
     idle_candidates: list[str] = field(default_factory=list)
     audit_log_tail: list[str] = field(default_factory=list)
+    state_label: str = "UNKNOWN"
+    state_age: str = "no snapshot — daemon may not be running"
 
 
 # ── Injectable factory seams (patched by tests) ───────────────────────────────
@@ -42,7 +44,7 @@ def _build_controller():
 
 
 def _build_daemon():
-    from sentinel.advisor.ollama import OllamaAdvisor  # noqa: PLC0415
+    from sentinel.advisor.ollama import build_advisor  # noqa: PLC0415
     from sentinel.config_store import JsonConfigStore  # noqa: PLC0415
     from sentinel.detection import build_detection  # noqa: PLC0415
     from sentinel.docker.port_discovery import DockerPortDiscoverer  # noqa: PLC0415
@@ -53,10 +55,15 @@ def _build_daemon():
 
     store = JsonConfigStore()
     app_cfg = store.load()
+    paths = store.paths()
     pipeline = build_pipeline(app_cfg.monitor)
     detection = build_detection(app_cfg.monitor)
-    engine = build_executor(app_cfg.execute)
-    advisor = OllamaAdvisor(app_cfg.advisor)
+    # Resolve the audit path from the same paths() the status reader tails —
+    # without this the executor falls back to a NullHandler and no action is
+    # ever recorded.
+    engine = build_executor(app_cfg.execute, audit_log_path=paths.audit_log_path)
+    # build_advisor is the only code that honours AdvisorConfig.enabled.
+    advisor = build_advisor(app_cfg.advisor)
     port_disc = DockerPortDiscoverer()
     wake_mgr = build_wake_proxy(app_cfg.wake)
     return build_daemon(
@@ -69,6 +76,7 @@ def _build_daemon():
         wake_manager=wake_mgr,
         monotonic=time.monotonic,
         sleep=time.sleep,
+        state_path=paths.state_path,
     )
 
 
@@ -148,6 +156,11 @@ def run() -> None:
 
 
 def _render_status(reporter: _StatusView) -> None:
+    # Duck-typed like the rest of this module: any object exposing the data
+    # attributes renders, so a reporter without state fields still prints.
+    label = getattr(reporter, "state_label", "UNKNOWN")
+    age = getattr(reporter, "state_age", "no snapshot")
+    typer.echo(f"State: {label} ({age})")
     typer.echo(f"Pressure: {reporter.pressure_level} ({reporter.pressure_label})")
     typer.echo(f"Swap used: {fmt.format_bytes(reporter.swap_used_bytes)}")
     typer.echo(f"Disk free: {fmt.format_bytes(reporter.disk_free_bytes)}")
@@ -185,6 +198,8 @@ def _status_view_from_report(report: object, paths: object) -> _StatusView:
     pressure = getattr(report, "pressure", None)
     swap = getattr(report, "swap", None)
     disks = getattr(report, "disks", ())
+    state = getattr(report, "state", None)
+    age = getattr(report, "snapshot_age_seconds", None)
     return _StatusView(
         pressure_level=int(pressure) if pressure is not None else 0,
         pressure_label=pressure.name if pressure is not None else "UNKNOWN",
@@ -193,7 +208,30 @@ def _status_view_from_report(report: object, paths: object) -> _StatusView:
         recent_actions=_map_actions(getattr(report, "recent_actions", ())),
         idle_candidates=_map_candidates(report),
         audit_log_tail=_read_audit_tail(paths),
+        state_label=_state_label(state, age),
+        state_age=_state_age(age),
     )
+
+
+# A snapshot older than this means the daemon is not ticking: it writes one
+# every tick, and the default interval is 30s.
+_STALE_AFTER_SECONDS = 180.0
+
+
+def _state_label(state: object, age: float | None) -> str:
+    """The reported state, or UNKNOWN when no snapshot backs it."""
+    if age is None:
+        return "UNKNOWN"
+    name = getattr(state, "value", None) or getattr(state, "name", None)
+    return str(name).upper() if name else "UNKNOWN"
+
+
+def _state_age(age: float | None) -> str:
+    if age is None:
+        return "no snapshot — daemon may not be running"
+    if age > _STALE_AFTER_SECONDS:
+        return f"STALE — last written {fmt.format_duration(age)} ago"
+    return f"as of {fmt.format_duration(age)} ago"
 
 
 def _map_actions(actions: tuple) -> list[dict]:
@@ -221,14 +259,17 @@ def _map_candidates(report: object) -> list[str]:
 def _read_audit_tail(paths: object) -> list[str]:
     from pathlib import Path  # noqa: PLC0415
 
+    from sentinel.audit_format import render  # noqa: PLC0415
+
     path = Path(getattr(paths, "audit_log_path", ""))
     try:
         lines = [
             ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()
         ]
-        return lines[-20:] if len(lines) > 20 else lines
     except OSError:
         return []
+    tail = lines[-20:] if len(lines) > 20 else lines
+    return [render(ln) for ln in tail]
 
 
 # Entry point for `python -m sentinel.cli ...` — the exact form the LaunchAgent
